@@ -265,7 +265,9 @@ namespace Misc
 	}
 
 	void Watermark(const CEntity&) noexcept;
+	void UpdateCustomSound() noexcept;
 	void HitManager(CEntity&, int&) noexcept;
+	void KillManager(CEntity&, int&) noexcept;
 	void BunnyHop(const CEntity&) noexcept;
 	void CleanTraces();
 

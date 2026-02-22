@@ -49,7 +49,6 @@ void Offsets::SetOffsets(const std::string& offsetsData, const std::string& butt
     this->Pawn.iShotsFired = client_dllJson["C_CSPlayerPawn"]["fields"]["m_iShotsFired"];
     this->Pawn.flFlashDuration = client_dllJson["C_CSPlayerPawnBase"]["fields"]["m_flFlashDuration"];
     this->Pawn.aimPunchAngle = client_dllJson["C_CSPlayerPawn"]["fields"]["m_aimPunchAngle"];
-    this->Pawn.aimPunchCache = client_dllJson["C_CSPlayerPawn"]["fields"]["m_aimPunchCache"];
     this->Pawn.iIDEntIndex = client_dllJson["C_CSPlayerPawn"]["fields"]["m_iIDEntIndex"];
     this->Pawn.iTeamNum = client_dllJson["C_BaseEntity"]["fields"]["m_iTeamNum"];
     this->Pawn.iFovStart = client_dllJson["CCSPlayerBase_CameraServices"]["fields"]["m_iFOVStart"];
@@ -81,6 +80,8 @@ void Offsets::SetOffsets(const std::string& offsetsData, const std::string& butt
     this->PlayerController.PawnArmor = client_dllJson["CCSPlayerController"]["fields"]["m_iPawnArmor"];
     this->PlayerController.HasDefuser = client_dllJson["CCSPlayerController"]["fields"]["m_bPawnHasDefuser"];
     this->PlayerController.HasHelmet = client_dllJson["CCSPlayerController"]["fields"]["m_bPawnHasHelmet"];
+    this->PlayerController.m_pActionTrackingServices = client_dllJson["CCSPlayerController"]["fields"]["m_pActionTrackingServices"];
+    this->PlayerController.m_iNumRoundKills = client_dllJson["CCSPlayerController_ActionTrackingServices"]["fields"]["m_iNumRoundKills"];
 
     this->EconEntity.AttributeManager = client_dllJson["C_EconEntity"]["fields"]["m_AttributeManager"];
 

@@ -6,6 +6,10 @@
 #include <random>
 #include "../Helpers/Logger.h"
 #include "../Core/Cheats.h"
+#include <mmsystem.h>
+#include <fstream>
+#pragma comment(lib, "Winmm.lib")
+
 namespace fs = std::filesystem;
 
 namespace System {
@@ -61,9 +65,74 @@ namespace Misc
 		ImGui::End();
 	}
 
-	void HitSound() noexcept
+	void UpdateCustomSound() noexcept
 	{
-		switch (MiscCFG::HitSound)
+		std::string filePath = MiscCFG::CustomKillSoundFile;
+		std::vector<char>& dataBuffer = MiscCFG::CustomKillSoundData;
+		int soundType = MiscCFG::KillSound;
+		std::string alias = "CustomKillSound";
+
+		dataBuffer.clear();
+		mciSendStringA(("close " + alias).c_str(), 0, 0, 0);
+
+		if (soundType >= 3 && !filePath.empty())
+		{
+			std::string ext = filePath.substr(filePath.find_last_of(".") + 1);
+			std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+			if (ext == "wav")
+			{
+				std::ifstream file(filePath, std::ios::binary | std::ios::ate);
+				if (file.is_open())
+				{
+					std::streamsize size = file.tellg();
+					file.seekg(0, std::ios::beg);
+					dataBuffer.resize(size);
+					if (!file.read(dataBuffer.data(), size))
+						dataBuffer.clear();
+				}
+			}
+			else if (ext == "mp3")
+			{
+				std::string cmd = "open \"" + filePath + "\" type mpegvideo alias " + alias;
+				mciSendStringA(cmd.c_str(), 0, 0, 0);
+			}
+		}
+	}
+
+	void HitManager(CEntity& LocalPlayer, int& PreviousTotalHits) noexcept
+	{
+		if (!MiscCFG::HitMarker || LocalPlayer.Controller.TeamID == 0 || MenuConfig::ShowMenu || !LocalPlayer.IsAlive())
+			return;
+
+		uintptr_t pBulletServices = 0;
+		int totalHits = PreviousTotalHits; // Initialize to prevent false triggers on read failure
+		
+		memoryManager.ReadMemory(LocalPlayer.Pawn.Address + Offset.Pawn.BulletServices, pBulletServices);
+		if (pBulletServices != 0) {
+			memoryManager.ReadMemory(pBulletServices + Offset.Pawn.TotalHit, totalHits);
+		}
+
+		if (totalHits > PreviousTotalHits) {
+			if (MiscCFG::HitMarker)
+			{
+				hitMarker = HitMarker(255.f, std::chrono::steady_clock::now());
+				hitMarker.Draw();
+			}
+		}
+
+		hitMarker.Update();
+		
+		// If totalHits drops to 0 (new round or respawn), this naturally resets the tracker
+		if (totalHits == 0 && PreviousTotalHits != 0) {
+			PreviousTotalHits = 0;
+		} else if (totalHits != PreviousTotalHits) {
+			PreviousTotalHits = totalHits;
+		}
+	}
+
+	void KillSound() noexcept
+	{
+		switch (MiscCFG::KillSound)
 		{
 		case 1:
 			PlaySoundA(reinterpret_cast<char*>(neverlose_sound), NULL, SND_ASYNC | SND_MEMORY);
@@ -72,41 +141,43 @@ namespace Misc
 			PlaySoundA(reinterpret_cast<char*>(skeet_sound), NULL, SND_ASYNC | SND_MEMORY);
 			break;
 		default:
+			if (MiscCFG::KillSound >= 3)
+			{
+				if (!MiscCFG::CustomKillSoundData.empty()) {
+					PlaySoundA(MiscCFG::CustomKillSoundData.data(), NULL, SND_ASYNC | SND_MEMORY);
+				} else if (!MiscCFG::CustomKillSoundFile.empty()) {
+					mciSendStringA("play CustomKillSound from 0", 0, 0, 0);
+				}
+			}
 			break;
 		}
 	}
 
-	void HitManager(CEntity& LocalPlayer, int& PreviousTotalHits) noexcept
+	void KillManager(CEntity& LocalPlayer, int& PreviousTotalKills) noexcept
 	{
-		if ((!MiscCFG::HitSound && !MiscCFG::HitMarker) || LocalPlayer.Controller.TeamID == 0 || MenuConfig::ShowMenu || !LocalPlayer.IsAlive())
+		if (!MiscCFG::KillSound || LocalPlayer.Controller.TeamID == 0 || MenuConfig::ShowMenu || !LocalPlayer.IsAlive())
 			return;
 
-		uintptr_t pBulletServices;
-		int totalHits;
-		memoryManager.ReadMemory(LocalPlayer.Pawn.Address + Offset.Pawn.BulletServices, pBulletServices);
-		memoryManager.ReadMemory(pBulletServices + Offset.Pawn.TotalHit, totalHits);
+		uintptr_t pActionTrackingServices = 0;
+		int totalKills = PreviousTotalKills; // Initialize to prevent false triggers on read failure
+		
+		memoryManager.ReadMemory(LocalPlayer.Controller.Address + Offset.PlayerController.m_pActionTrackingServices, pActionTrackingServices);
+		if (pActionTrackingServices != 0)
+		{
+			memoryManager.ReadMemory(pActionTrackingServices + Offset.PlayerController.m_iNumRoundKills, totalKills);
 
-		if (totalHits != PreviousTotalHits) {
-			if (totalHits == 0 && PreviousTotalHits != 0)
+			if (totalKills > PreviousTotalKills)
 			{
-				// `totalHits` changed from non-zero to zero, do nothing
+				KillSound();
 			}
-			else
-			{
-				if (MiscCFG::HitSound)
-				{
-					HitSound();
-				}
-				if (MiscCFG::HitMarker)
-				{
-					hitMarker = HitMarker(255.f, std::chrono::steady_clock::now());
-					hitMarker.Draw();
-				}
+			
+			// If totalKills drops to 0 (new round), reset tracker
+			if (totalKills == 0 && PreviousTotalKills != 0) {
+				PreviousTotalKills = 0;
+			} else if (totalKills != PreviousTotalKills) {
+				PreviousTotalKills = totalKills;
 			}
 		}
-
-		hitMarker.Update();
-		PreviousTotalHits = totalHits;
 	}
 
 	void BunnyHop(const CEntity& Local) noexcept

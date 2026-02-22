@@ -8,6 +8,7 @@
 #include "../Features/TriggerBot.h"
 #include "../Features/Aimbot.h"
 #include "../Features/RCS.h"
+#include "../Features/Misc.h"
 #include "../Helpers/KeyManager.h"
 #include <json.hpp>
 
@@ -211,7 +212,9 @@ namespace MyConfigSaver
 
         ConfigData["Misc"]["WorkInSpec"]=       MenuConfig::WorkInSpec;
         ConfigData["Misc"]["Watermark"]=        MiscCFG::WaterMark;
-        ConfigData["Misc"]["HitSounds"]=        MiscCFG::HitSound;
+        ConfigData["Misc"]["KillSounds"]=       MiscCFG::KillSound;
+        ConfigData["Misc"]["KillSoundFileName"]=MiscCFG::KillSoundFileName;
+        ConfigData["Misc"]["CustomKillSound"]=  MiscCFG::CustomKillSoundFile;
         ConfigData["Misc"]["HitMarker"]=        MiscCFG::HitMarker;
 
         ConfigData["Misc"]["BombTimer"]=        MiscCFG::bmbTimer;
@@ -253,6 +256,7 @@ namespace MyConfigSaver
 
         ConfigData["MenuConfig"]["SpecWinPos"]["x"] = MenuConfig::SpecWinPos.x;
         ConfigData["MenuConfig"]["SpecWinPos"]["y"] = MenuConfig::SpecWinPos.y;
+        ConfigData["MenuConfig"]["Theme"] = MenuConfig::Theme;
 
         configFile << ConfigData.dump(4);
         configFile.close();
@@ -467,7 +471,10 @@ namespace MyConfigSaver
             MiscCFG::HeadShootLineColor.Value.w = ReadData(ConfigData["Misc"],{"HeadShootLineColor","a"}, 255.f);
             MenuConfig::WorkInSpec = ReadData(ConfigData["Misc"],{"WorkInSpec"}, false);
             MiscCFG::WaterMark = ReadData(ConfigData["Misc"],{"Watermark"}, false);
-            MiscCFG::HitSound = ReadData(ConfigData["Misc"],{"HitSounds"}, 0);
+            MiscCFG::KillSound = ReadData(ConfigData["Misc"],{"KillSounds"}, 0);
+            MiscCFG::KillSoundFileName = ReadData(ConfigData["Misc"],{"KillSoundFileName"}, std::string(""));
+            MiscCFG::CustomKillSoundFile = ReadData(ConfigData["Misc"],{"CustomKillSound"}, std::string(""));
+            Misc::UpdateCustomSound();
             MiscCFG::HitMarker = ReadData(ConfigData["Misc"],{"HitMarker"}, false);
             MiscCFG::bmbTimer = ReadData(ConfigData["Misc"],{"BombTimer"}, false);
             MiscCFG::BombTimerCol.Value.x = ReadData(ConfigData["Misc"],{"TimerColor","r"}, 0.f);
@@ -515,6 +522,8 @@ namespace MyConfigSaver
 
             MenuConfig::SpecWinPos.x = ReadData(ConfigData["MenuConfig"], { "SpecWinPos","x" }, 10.0f);
             MenuConfig::SpecWinPos.y = ReadData(ConfigData["MenuConfig"], { "SpecWinPos","y" }, ImGui::GetIO().DisplaySize.y / 2 - 200);
+
+            MenuConfig::Theme = ReadData(ConfigData["MenuConfig"], { "Theme" }, 0);
 
             MenuConfig::MarkWinChengePos = true;
             MenuConfig::BombWinChengePos = true;

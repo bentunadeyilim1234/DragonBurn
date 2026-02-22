@@ -1,6 +1,6 @@
 #include "Entity.h"
-#undef min()
-#undef max()
+#undef min
+#undef max
 
 
 std::unordered_map<int, std::string> CEntity::weaponNames = {
@@ -112,8 +112,6 @@ bool CEntity::UpdatePawn(const DWORD64& PlayerPawnAddress)
 		return false;
 	if (!this->Pawn.GetVelocity())
 		return false;
-	if (!this->Pawn.GetAimPunchCache())//
-		return false;
 	if (!this->Pawn.BoneData.UpdateAllBoneData(PlayerPawnAddress))//
 		return false;
 
@@ -223,11 +221,6 @@ bool PlayerPawn::GetAimPunchAngle()
 bool PlayerPawn::GetTeamID()
 {
 	return GetDataAddressWithOffset<int>(Address, Offset.Pawn.iTeamNum, this->TeamID);
-}
-
-bool PlayerPawn::GetAimPunchCache()
-{
-	return GetDataAddressWithOffset<C_UTL_VECTOR>(Address, Offset.Pawn.aimPunchCache, this->AimPunchCache);
 }
 
 DWORD64 PlayerController::GetPlayerPawnAddress()
@@ -490,15 +483,122 @@ bool EntityBatchProcessor::ProcessAllEntities(
 	if (!ProcessDependenciesData(entities, weaponDataAddresses, cameraAddresses)) {
 		return false;
 	}
-	// Phase 4: Bone Data (process individually for now)
-	for (auto& [entityIndex, entity] : entities) {
-
-		if (entity.Pawn.Address != 0) {
-			entity.Pawn.BoneData.UpdateAllBoneData(entity.Pawn.Address);
-		}
+	// Phase 4: Bone Data
+	if (!ProcessBoneData(entities)) {
+		return false;
 	}
 
 	return true;
+}
+
+bool EntityBatchProcessor::ProcessBoneData(std::vector<std::pair<int, CEntity>>& entities) {
+    if (entities.empty()) return true;
+    
+    struct BoneContext {
+        CEntity* entity;
+        uintptr_t gameSceneNode = 0;
+        uintptr_t boneArray = 0;
+    };
+    
+    std::vector<BoneContext> contexts;
+    contexts.reserve(entities.size());
+    for (auto& [idx, e] : entities) {
+        contexts.push_back({ &e, 0, 0 });
+    }
+
+    // 1. Get GameSceneNodes
+    {
+        std::vector<std::pair<DWORD64, SIZE_T>> requests;
+        std::vector<int> ctxMap;
+        for (int i = 0; i < contexts.size(); ++i) {
+            if (contexts[i].entity->Pawn.Address != 0) {
+                requests.push_back({ contexts[i].entity->Pawn.Address + Offset.Pawn.GameSceneNode, sizeof(uintptr_t) });
+                ctxMap.push_back(i);
+            }
+        }
+        if (requests.empty()) return true;
+        std::vector<uintptr_t> results(requests.size(), 0);
+        if (memoryManager.BatchReadMemory(requests, results.data())) {
+            for (size_t i = 0; i < results.size(); ++i) {
+                contexts[ctxMap[i]].gameSceneNode = results[i];
+            }
+        } else return false;
+    }
+
+    // 2. Get BoneArrays
+    {
+        std::vector<std::pair<DWORD64, SIZE_T>> requests;
+        std::vector<int> ctxMap;
+        for (int i = 0; i < contexts.size(); ++i) {
+            if (contexts[i].gameSceneNode != 0) {
+                requests.push_back({ contexts[i].gameSceneNode + Offset.Pawn.BoneArray, sizeof(uintptr_t) });
+                ctxMap.push_back(i);
+            }
+        }
+        if (requests.empty()) return true;
+        std::vector<uintptr_t> results(requests.size(), 0);
+        if (memoryManager.BatchReadMemory(requests, results.data())) {
+            for (size_t i = 0; i < results.size(); ++i) {
+                contexts[ctxMap[i]].boneArray = results[i];
+            }
+        } else return false;
+    }
+
+    // 3. Get IData and originalData
+    {
+        std::vector<std::pair<DWORD64, SIZE_T>> requests;
+        std::vector<int> ctxMap;
+        constexpr size_t NUM_BONES = 30;
+        for (int i = 0; i < contexts.size(); ++i) {
+            if (contexts[i].boneArray != 0) {
+                requests.push_back({ contexts[i].boneArray, NUM_BONES * sizeof(CBoneData) });
+                requests.push_back({ contexts[i].boneArray, NUM_BONES * sizeof(BoneJointData) });
+                ctxMap.push_back(i);
+            }
+        }
+        if (requests.empty()) return true;
+        
+        SIZE_T totalDataSize = 0;
+        for (const auto& req : requests) totalDataSize += req.second;
+        
+        std::vector<BYTE> dataBuffer(totalDataSize);
+        if (memoryManager.BatchReadMemory(requests, dataBuffer.data())) {
+            SIZE_T offset = 0;
+            for (int i = 0; i < ctxMap.size(); ++i) {
+                CEntity* entity = contexts[ctxMap[i]].entity;
+                entity->Pawn.BoneData.EntityPawnAddress = entity->Pawn.Address;
+                entity->Pawn.BoneData.GameSceneNode = contexts[ctxMap[i]].gameSceneNode;
+                
+                CBoneData IData[NUM_BONES];
+                memcpy(IData, dataBuffer.data() + offset, sizeof(IData));
+                offset += sizeof(IData);
+                
+                BoneJointData originalData[NUM_BONES];
+                memcpy(originalData, dataBuffer.data() + offset, sizeof(originalData));
+                offset += sizeof(originalData);
+                
+                // Update bone lists
+                entity->Pawn.BoneData.BonePosList.clear();
+                entity->Pawn.BoneData.IBoneData.clear();
+                entity->Pawn.BoneData.BonePosList.reserve(NUM_BONES);
+                entity->Pawn.BoneData.IBoneData.reserve(NUM_BONES);
+                
+                for (size_t j = 0; j < NUM_BONES; ++j) {
+                    Vec2 screenPos;
+                    bool visible = gGame.View.WorldToScreen(originalData[j].Pos, screenPos);
+                    
+                    entity->Pawn.BoneData.BonePosList.push_back({ originalData[j].Pos, screenPos, visible });
+                    entity->Pawn.BoneData.IBoneData.push_back({
+                        originalData[j].Pos,
+                        originalData[j].Scale,
+                        IData[j].Rotation
+                    });
+                }
+            }
+        } else return false;
+    }
+
+    return true;
 }
 
 bool EntityBatchProcessor::ProcessCoreEntityData(
@@ -533,7 +633,6 @@ bool EntityBatchProcessor::ProcessCoreEntityData(
 		requests.emplace_back(entity.Pawn.Address + Offset.Pawn.CurrentArmor, sizeof(int));
 		requests.emplace_back(entity.Pawn.Address + Offset.Pawn.flFlashDuration, sizeof(float));
 		//requests.emplace_back(entity.Pawn.Address + Offset.C4.m_bBeingDefused, sizeof(bool));
-		requests.emplace_back(entity.Pawn.Address + Offset.Pawn.aimPunchCache, sizeof(C_UTL_VECTOR));
 		requests.emplace_back(entity.Pawn.Address + Offset.Pawn.AbsVelocity, sizeof(Vec3));
 		requests.emplace_back(entity.Pawn.Address + Offset.Pawn.pClippingWeapon, sizeof(DWORD64));
 		requests.emplace_back(entity.Pawn.Address + Offset.Pawn.CameraServices, sizeof(DWORD64));
@@ -559,7 +658,7 @@ bool EntityBatchProcessor::ProcessCoreEntityData(
 	const SIZE_T CONTROLLER_DATA_SIZE = sizeof(int) * 3 + MAX_PATH + sizeof(INT64) + sizeof(DWORD);// if u adding new controller field to read add its size here
 
 	const SIZE_T PAWN_DATA_SIZE = sizeof(Vec2) * 2 + sizeof(Vec3) * 3 + sizeof(DWORD64) * 3 +
-		sizeof(DWORD) + sizeof(int) * 4 + sizeof(float) + sizeof(C_UTL_VECTOR); // if u adding new pawn field to read add its size here
+		sizeof(DWORD) + sizeof(int) * 4 + sizeof(float); // if u adding new pawn field to read add its size here
 	const SIZE_T ENTITY_DATA_SIZE = CONTROLLER_DATA_SIZE + PAWN_DATA_SIZE;
 
 	SIZE_T currentOffset = 0;
@@ -629,9 +728,6 @@ bool EntityBatchProcessor::ProcessCoreEntityData(
 
 		//memcpy(&entity.Pawn.isDefusing, buffer.data() + currentOffset, sizeof(bool));
 		//currentOffset += sizeof(bool);
-
-		memcpy(&entity.Pawn.AimPunchCache, buffer.data() + currentOffset, sizeof(C_UTL_VECTOR));
-		currentOffset += sizeof(C_UTL_VECTOR);
 
 		// Calculate velocity
 		Vec3 velocity;

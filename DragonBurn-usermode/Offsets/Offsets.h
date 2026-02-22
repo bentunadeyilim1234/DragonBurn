@@ -59,7 +59,6 @@ public:
 		DWORD iShotsFired;
 		DWORD flFlashDuration;
 		DWORD aimPunchAngle;
-		DWORD aimPunchCache;
 		DWORD iIDEntIndex;
 		DWORD iTeamNum;
 		DWORD iFovStart;
@@ -98,6 +97,8 @@ public:
 		DWORD HasDefuser;
 		DWORD HasHelmet;
 		DWORD m_nTickBase;
+		DWORD m_pActionTrackingServices;
+		DWORD m_iNumRoundKills;
 	} PlayerController;
 
 	struct

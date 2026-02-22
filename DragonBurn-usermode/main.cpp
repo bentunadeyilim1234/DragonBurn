@@ -98,6 +98,7 @@ void Cheat()
 		try
 		{
 			fs::create_directories(MenuConfig::path + "\\Data");
+			fs::create_directories(MenuConfig::path + "\\hitsounds");
 			Log::Fine("Config folder connected: " + MenuConfig::path);
 		}
 		catch (std::exception error)
@@ -264,10 +265,8 @@ UPDATE_OFFSETS://UPDATE_OFFSETS
 	Log::Fine("DragonBurn loaded");
 
 
-#ifndef DBDEBUG
-	Sleep(3000);
+	Sleep(1000);
 	ShowWindow(GetConsoleWindow(), SW_HIDE);
-#endif
 
 	try
 	{

@@ -30,6 +30,8 @@ namespace MenuConfig
 
 	inline bool defaultConfig = false;
 
+	inline int Theme = 0; // 0: Dark, 1: Light, 2: Classic, 3: DragonBurn
+
 	// 0: Window 1: Collapse
 	inline int WindowStyle = 0;
 	inline bool ShowMenu = true;
@@ -172,7 +174,11 @@ namespace MiscCFG
 	inline bool WaterMark = true;
 	inline bool SniperCrosshair = true;
 	inline ImColor SniperCrosshairColor = ImColor(32, 178, 170, 255);
-	inline int	HitSound = 0;
+	inline int  KillSound = 0;
+	inline std::string KillSoundFileName = "";
+	inline std::string CustomKillSoundFile = "";
+
+	inline std::vector<char> CustomKillSoundData;
 	inline bool HitMarker = false;
 	inline bool bmbTimer = true;
 	inline bool FastStop = false;

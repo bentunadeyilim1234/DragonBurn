@@ -1,6 +1,6 @@
 #include "Aimbot.h"
-#undef max()
-#undef min()
+#undef max
+#undef min
 
 void AimControl::switchToggle()
 {

@@ -198,8 +198,44 @@ namespace GUI
 	}
 	// ########################################
 
+	inline void ApplyTheme() {
+		switch (MenuConfig::Theme)
+		{
+		case 0: ImGui::StyleColorsDark(); break;
+		case 1: ImGui::StyleColorsLight(); break;
+		case 2: ImGui::StyleColorsClassic(); break;
+		case 3:
+		{
+			ImGuiStyle& style = ImGui::GetStyle();
+			ImGui::StyleColorsDark(&style);
+			style.Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.06f, 0.06f, 1.00f);
+			style.Colors[ImGuiCol_Border] = ImVec4(1.00f, 0.40f, 0.00f, 0.50f);
+			style.Colors[ImGuiCol_Button] = ImVec4(1.00f, 0.40f, 0.00f, 0.40f);
+			style.Colors[ImGuiCol_ButtonHovered] = ImVec4(1.00f, 0.50f, 0.10f, 0.60f);
+			style.Colors[ImGuiCol_ButtonActive] = ImVec4(1.00f, 0.60f, 0.20f, 0.80f);
+			style.Colors[ImGuiCol_Header] = ImVec4(1.00f, 0.40f, 0.00f, 0.40f);
+			style.Colors[ImGuiCol_HeaderHovered] = ImVec4(1.00f, 0.50f, 0.10f, 0.60f);
+			style.Colors[ImGuiCol_HeaderActive] = ImVec4(1.00f, 0.60f, 0.20f, 0.80f);
+			style.Colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
+			style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
+			style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
+			style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);
+			style.Colors[ImGuiCol_CheckMark] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
+			style.Colors[ImGuiCol_SliderGrab] = ImVec4(1.00f, 0.50f, 0.00f, 1.00f);
+			style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(1.00f, 0.70f, 0.00f, 1.00f);
+			break;
+		}
+		}
+	}
+
 	void DrawGui()
 	{
+		static int CurrentTheme = -1;
+		if (CurrentTheme != MenuConfig::Theme) {
+			ApplyTheme();
+			CurrentTheme = MenuConfig::Theme;
+		}
+
 		LoadImages();
 		ImTextureID ImageID;
 		ImVec2 LogoSize, LogoPos;
@@ -636,11 +672,74 @@ namespace GUI
 					PutSwitch(Text::Misc::Watermark.c_str(), 10.f, ImGui::GetFrameHeight() * 1.7, &MiscCFG::WaterMark);
 					PutSwitch(Text::Misc::HeadshotLine.c_str(), 10.f, ImGui::GetFrameHeight() * 1.7, &MiscCFG::ShowHeadShootLine);
 					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 10.f);
-					ImGui::TextDisabled(Text::Misc::HitSound.c_str());
+					
+					// Static variables for scanning custom sounds
+					static std::vector<std::string> soundNames;
+					static std::vector<std::string> soundPaths;
+					static std::string comboItems = "";
+					static bool filesScanned = false;
+					static ULONGLONG lastScanTime = 0;
+					
+					ULONGLONG currentTime = GetTickCount64();
+					if (!filesScanned || currentTime - lastScanTime > 2000) {
+						soundNames.clear();
+						soundPaths.clear();
+						comboItems.clear();
+						comboItems.append("None\0Neverlose\0Skeet\0", 21);
+
+						std::string hitsoundsPath = MenuConfig::path + "\\hitsounds";
+						if (std::filesystem::exists(hitsoundsPath)) {
+							for (const auto& entry : std::filesystem::directory_iterator(hitsoundsPath)) {
+								if (entry.is_regular_file()) {
+									std::string ext = entry.path().extension().string();
+									std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+									if (ext == ".wav" || ext == ".mp3") {
+										soundNames.push_back(entry.path().filename().string());
+										soundPaths.push_back(entry.path().string());
+										comboItems += entry.path().filename().string();
+										comboItems += '\0';
+									}
+								}
+							}
+						}
+						comboItems += '\0';
+						lastScanTime = currentTime;
+
+						// Restore custom sound index by name if loaded from config
+						if (!filesScanned) {
+
+							if (MiscCFG::KillSound >= 3 && !MiscCFG::KillSoundFileName.empty()) {
+								MiscCFG::KillSound = 0; // Default fallback if not found
+								for (size_t i = 0; i < soundNames.size(); i++) {
+									if (soundNames[i] == MiscCFG::KillSoundFileName) {
+										MiscCFG::KillSound = 3 + i;
+										MiscCFG::CustomKillSoundFile = soundPaths[i];
+										break;
+									}
+								}
+							}
+							Misc::UpdateCustomSound();
+						}
+						filesScanned = true;
+					}
+
+					ImGui::TextDisabled("Kill Sound");
 					ImGui::SameLine();
 					AlignRight(160.f);
 					ImGui::SetNextItemWidth(160.f);
-					ImGui::Combo("###HitSounds", &MiscCFG::HitSound, "None\0Neverlose\0Skeet\0");
+					if (ImGui::Combo("###KillSounds", &MiscCFG::KillSound, comboItems.c_str())) {
+						if (MiscCFG::KillSound >= 3) {
+							if (MiscCFG::KillSound - 3 < soundNames.size()) {
+								MiscCFG::KillSoundFileName = soundNames[MiscCFG::KillSound - 3];
+								MiscCFG::CustomKillSoundFile = soundPaths[MiscCFG::KillSound - 3];
+							}
+						} else {
+							MiscCFG::KillSoundFileName = "";
+							MiscCFG::CustomKillSoundFile = "";
+						}
+						Misc::UpdateCustomSound();
+					}
+
 					PutSwitch(Text::Misc::HitMerker.c_str(), 10.f, ImGui::GetFrameHeight() * 1.7, &MiscCFG::HitMarker);
 					PutSwitch(Text::Misc::BunnyHop.c_str(), 10.f, ImGui::GetFrameHeight() * 1.7, &MiscCFG::BunnyHop, false, NULL, NULL, Text::Misc::InsecureTip.c_str());
 					PutSwitch(Text::Misc::FastStop.c_str(), 10.f, ImGui::GetFrameHeight() * 1.7, &MiscCFG::FastStop, false, NULL, NULL, Text::Misc::InsecureTip.c_str());
@@ -653,6 +752,16 @@ namespace GUI
 					ImGui::NextColumn();
 					ImGui::SetCursorPosY(24.f);
 					ImGui::GradientText("Global Settings");
+					
+					ImGui::TextDisabled("Theme");
+					ImGui::SameLine();
+					AlignRight(160.f);
+					ImGui::SetNextItemWidth(160.f);
+					if (ImGui::Combo("###Theme", &MenuConfig::Theme, "Dark\0Light\0Classic\0DragonBurn\0"))
+					{
+						ApplyTheme();
+					}
+					
 					ImGui::TextDisabled(Text::Misc::MenuKey.c_str());
 					ImGui::SameLine();
 					AlignRight(70.f);

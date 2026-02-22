@@ -1580,10 +1580,8 @@ void ImGui::GradientText(const char* text)
     );
 
     // Set text color and render
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_ChildBg));
     ImGui::SetCursorScreenPos(p3);
     ImGui::TextUnformatted(text);
-    ImGui::PopStyleColor();
 
     // Restore original font scale
     font->Scale = oldScale;

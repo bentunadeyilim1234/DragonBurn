@@ -132,20 +132,27 @@ void Cheats::Run()
 // collect entity data
 std::vector<std::pair<int, CEntity>> Cheats::CollectEntityData(CEntity& localEntity, int& localPlayerControllerIndex)
 {
-	// update only on new tick
-	//if (m_currentTick == m_previousTick)
-	//{
-	//	return cachedResults;
-	//}
-
 	std::vector<EntityBatchData> batchData;
 	batchData.reserve(64);
+
+    DWORD64 entityListEntry = gGame.GetEntityListEntry();
+    if (entityListEntry == 0) return {};
+
+    std::vector<std::pair<DWORD64, SIZE_T>> entityRequests(64);
+    for (int i = 0; i < 64; ++i) {
+        entityRequests[i] = { entityListEntry + (i + 1) * 0x70, sizeof(DWORD64) };
+    }
+
+    std::vector<DWORD64> entityAddresses(64, 0);
+    if (!memoryManager.BatchReadMemory(entityRequests, entityAddresses.data())) {
+        return {};
+    }
 
 	// collect entity addresses
 	for (int entityIndex = 0; entityIndex < 64; ++entityIndex)
 	{
-		DWORD64 entityAddress = 0;
-		if (!memoryManager.ReadMemory<DWORD64>(gGame.GetEntityListEntry() + (entityIndex + 1) * 0x70, entityAddress))
+		DWORD64 entityAddress = entityAddresses[entityIndex];
+		if (entityAddress == 0)
 		{
 			continue;
 		}
@@ -426,7 +433,8 @@ void MiscFuncs(CEntity& LocalEntity)
     bmb::RenderWindow(LocalEntity.Controller.TeamID);
     SoundESP::Render();
 
-    Misc::HitManager(LocalEntity, PreviousTotalHits);
+    static int PreviousTotalKills = 0;
+    Misc::KillManager(LocalEntity, PreviousTotalKills);
     Misc::BunnyHop(LocalEntity);
     Misc::Watermark(LocalEntity);
     Misc::FastStop();

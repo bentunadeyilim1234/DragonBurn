@@ -86,7 +86,6 @@ public:
 	DWORD ShotsFired;
 	DWORD GameSceneNode;
 	Vec2 AimPunchAngle;
-	C_UTL_VECTOR AimPunchCache;
 	int Health;
 	int Ammo;
 	//int MaxAmmo;
@@ -110,7 +109,6 @@ public:
 	bool GetFov();
 	bool GetSpotted();
 	bool GetFFlags();
-	bool GetAimPunchCache();
 	bool GetAmmo();
 	//bool GetMaxAmmo();
 	bool GetArmor();
@@ -154,7 +152,6 @@ private:
 			BatchField{ Offset.Pawn.CurrentArmor, &pawn.Armor },
 			BatchField{ Offset.Pawn.flFlashDuration, &pawn.FlashDuration },
 			//BatchField{ Offset.C4.m_bBeingDefused, &pawn.isDefusing },
-			BatchField{ Offset.Pawn.aimPunchCache, &pawn.AimPunchCache },
 			BatchField{ Offset.Pawn.GameSceneNode, &pawn.GameSceneNode }
 		);
 	}
@@ -231,6 +228,9 @@ private:
 	bool ProcessDependenciesData(std::vector<std::pair<int, CEntity>>& entities,
 		const std::vector<DWORD64>& weaponDataAddresses,
 		const std::vector<DWORD64>& cameraAddresses);
+
+	// Phase 4: Bone data
+	bool ProcessBoneData(std::vector<std::pair<int, CEntity>>& entities);
 
 public:
 
